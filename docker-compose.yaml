@@ -1,0 +1,208 @@
+version: '3'
+services:
+
+  neo4j:
+      image: neo4j:4.4.4-enterprise
+      container_name: compose_neo4j
+      ulimits:
+        nofile:
+          soft: 40000
+          hard: 40000
+      environment:
+          - NEO4J_AUTH=neo4j/test
+          - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+          - NEO4J_apoc_export_file_enabled=true
+          - NEO4J_apoc_import_file_enabled=true
+          - NEO4J_apoc_import_file_use__neo4j__config=true
+      ports:
+          - 7474:7474
+          - 7687:7687
+      volumes:
+          - ./example/docker/neo4j/conf:/var/lib/neo4j/conf
+          - ./example/docker/neo4j/plugins:/var/lib/neo4j/plugins
+          - ./example/backup:/backup
+          - neo4j_data:/data
+      networks:
+        - datalogznet
+
+  elasticsearch:
+      image: elasticsearch:7.16.3
+      container_name: elasticsearch
+      ports:
+          - 9200:9200
+      volumes:
+        - ./es_data:/usr/share/elasticsearch/data
+      networks:
+        - datalogznet
+      ulimits:
+        nofile:
+          soft: 65536
+          hard: 65536
+      environment:
+        - discovery.type=single-node
+        - xpack.security.enabled=false
+
+  search:
+      image: dl-search
+      container_name: search
+      ports:
+        - 5001:5001
+      depends_on:
+        - elasticsearch
+      networks:
+        - datalogznet
+      environment:
+        - PROXY_ENDPOINT=elasticsearch
+      command: gunicorn -w 2 --bind :5001 search_service.search_wsgi
+
+  metadata:
+      image: dl-metadata
+      container_name: metadata
+      depends_on:
+        - neo4j
+      ports:
+        - 5002:5002
+      networks:
+        - datalogznet
+      environment:
+         - PROXY_HOST=neo4j://neo4j
+      command: gunicorn -w 2 --bind :5002 metadata_service.metadata_wsgi
+
+  frontend:
+      image: dl-frontend
+      container_name: frontend
+      #      depends_on:
+              # - amundsenmetadata
+          #      - amundsensearch
+      ports:
+        - 5000:5000
+      networks:
+        - datalogznet
+      environment:
+        - DATABUILDER_BASE=http://databuilder:3374
+        - FRONTEND_BASE=http://localhost:5000
+        - GOOGLE_CLIENT_ID=756496764261-iosfpr314epbjh8dg6k5kloi6d5m9sk4.apps.googleusercontent.com
+        - GOOGLE_CLIENT_SECRET=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
+        - PROTOCOL=http://
+        - HOST=localhost:5000
+        - JOBS_SERVICE_BASE=http://scheduler:5003
+        - METADATASERVICE_BASE=http://metadata:5002
+        - SEARCHSERVICE_BASE=http://search:5000
+        - WORKOS_API_KEY=sk_test_a2V5XzAxRzBRMkhaTkRZSldXSEhLWjFDTVNQVkJWLDVBUGhCQ3d4a0EwbWcwa0lDTWVPTVlDRVM
+        - WORKOS_CLIENT_ID=client_01G0Q2HZNJD2STHPHWFMT21MJW
+        - POWERBI_CLIENT_ID=0905ce73-0f54-488c-8bf9-6703004eb4ef
+        - POWERBI_CLIENT_SECRET=gU48Q~Tv-H4_2xvelWJUamCZbiJW1GzLx.yz1a-C
+        # Only for easy config-less Quickstart bookmark evalutation. `TestConfig` extends ordinary `LocalConfig` by
+        # defining `AUTH_USER_METHOD` to a hardcoded dummy user in `amundsen_application.tests.test_utils.get_test_user()`
+        # See further docs in https://github.com/amundsen-io/amundsenfrontendlibrary/blob/master/docs/configuration.md#flask
+        # and https://github.com/amundsen-io/amundsenfrontendlibrary/blob/master/docs/configuration.md#authentication
+        - FRONTEND_SVC_CONFIG_MODULE_CLASS=amundsen_application.config.TestConfig
+      command: gunicorn -w 2 --bind :5000 amundsen_application.wsgi
+
+  databuilder:
+      image: dl-databuilder
+      container_name: databuilder
+      ports:
+        - 3374:3374
+      networks:
+        - datalogznet
+      environment:
+        - CREDENTIALS_ELASTICSEARCH_PROXY_HOST=elasticsearch
+        - CREDENTIALS_NEO4J_PROXY_HOST=neo4j://neo4j
+        - DATABASE_URI=postgresql://p_user:p_password@postgres/cron_jobs
+        - FRONTENDSERVICE_BASE=http://frontend:5000
+        - METADATASERVICE_BASE=http://metadata:5002
+      command: gunicorn -w 4 --bind :3374 --timeout 0 wsgi:app --access-logfile -
+
+  scheduler:
+      image: dl-scheduler
+      container_name: scheduler
+      depends_on:
+        postgres:
+         condition: service_healthy
+      ports:
+        - 5003:5003
+      networks:
+        - datalogznet
+      environment:
+        - DATABASE_URI=postgresql://postgres:postgres@postgres/cron_jobs
+        - DATABUILDER_URL=http://databuilder:3374
+        - DATA_SOURCE_CREDENTIALS_URL=http://metadata:5002/data_source
+      command: ./docker-entrypoint.sh
+
+  utility:
+      image: dl-utility
+      container_name: dl-utility
+      depends_on:
+        - kafka
+      ports:
+        - 5004:5004
+      networks:
+        - datalogznet
+      environment:
+        - KAFKA_INSTANCE_HOST=kafka
+        - KAFKA_INSTANCE_PORT=9092
+
+  postgres:
+      image: postgres:11
+      container_name: postgres
+      ports:
+        - 5432:5432
+      networks:
+        - datalogznet
+      environment:
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        - POSTGRES_DB=cron_jobs
+      volumes:
+        - ./pgdata:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U postgres"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+#    platform: linux/arm64/v8
+    ports:
+      - 2181:2181
+    volumes:
+      - ./zookeeper_data:/bitnami
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_CLIENT_PORT=2181
+    networks:
+      - datalogznet
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    #hostname: kafka
+    container_name: kafka
+#    platform: linux/arm64/v8
+    ports:
+      - 9092:9092
+    volumes:
+      - ./kafka_data:/bitnami
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_INTERNAL://kafka:29092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+    depends_on:
+      - zookeeper
+    networks:
+      - datalogznet
+
+networks:
+  datalogznet:
+
+volumes:
+  es_data:
+  neo4j_data:
