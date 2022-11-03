@@ -1,23 +1,3 @@
-<!-----
-
-Yay, no errors, warnings, or alerts!
-
-Conversion time: 0.379 seconds.
-
-Using this Markdown file:
-
-1. Paste this output into your source file.
-2. See the notes and action items below regarding this conversion run.
-3. Check the rendered output (headings, lists, code blocks, tables) for proper
-   formatting and use a linkchecker before you publish this page.
-
-Conversion notes:
-
-* Docs to Markdown version 1.0β33
-* Thu Nov 03 2022 10:34:11 GMT-0700 (PDT)
-* Source doc: Datalogz On-Prem deployment using docker compose
------>
-
 # Datalogz On-Prem deployment using _docker compose_
 
 Datalogz offers on-prem deployment using docker compose. Datalogz application follows microservice architecture, each service runs in a separate docker container. In this document, we will be looking at the important configurations required by each service to run the Datalogza app successfully. . We can configure each microservice in docker compose using the environment variables.
