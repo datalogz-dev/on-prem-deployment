@@ -81,17 +81,17 @@ services:
       environment:
         - DATABUILDER_BASE=http://databuilder:3374
         - FRONTEND_BASE=http://localhost:5000
-        - GOOGLE_CLIENT_ID=756496764261-iosfpr314epbjh8dg6k5kloi6d5m9sk4.apps.googleusercontent.com
-        - GOOGLE_CLIENT_SECRET=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
+        - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+        - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
         - PROTOCOL=http://
         - HOST=localhost:5000
         - JOBS_SERVICE_BASE=http://scheduler:5003
         - METADATASERVICE_BASE=http://metadata:5002
         - SEARCHSERVICE_BASE=http://search:5000
-        - WORKOS_API_KEY=sk_test_a2V5XzAxRzBRMkhaTkRZSldXSEhLWjFDTVNQVkJWLDVBUGhCQ3d4a0EwbWcwa0lDTWVPTVlDRVM
-        - WORKOS_CLIENT_ID=client_01G0Q2HZNJD2STHPHWFMT21MJW
-        - POWERBI_CLIENT_ID=0905ce73-0f54-488c-8bf9-6703004eb4ef
-        - POWERBI_CLIENT_SECRET=gU48Q~Tv-H4_2xvelWJUamCZbiJW1GzLx.yz1a-C
+        - WORKOS_API_KEY=${WORKOS_API_KEY}
+        - WORKOS_CLIENT_ID=${WORKOS_CLIENT_ID}
+        - POWERBI_CLIENT_ID=${POWERBI_CLIENT_ID}
+        - POWERBI_CLIENT_SECRET=${POWERBI_CLIENT_SECRET}
         # Only for easy config-less Quickstart bookmark evalutation. `TestConfig` extends ordinary `LocalConfig` by
         # defining `AUTH_USER_METHOD` to a hardcoded dummy user in `amundsen_application.tests.test_utils.get_test_user()`
         # See further docs in https://github.com/amundsen-io/amundsenfrontendlibrary/blob/master/docs/configuration.md#flask
